@@ -126,6 +126,8 @@ namespace SpatialPrinting
                         shapes[i] = SuperShape.SuperShapeFactory(guid, null, DivisionStyle.PointData, ZOrientStyle.PointData, VectorStyle.ByParam, YOrientStyle.PointData, false, 0.0, Plane.WorldXY);
                         //smtPlugin.UserGeometry[guid] = partObjs[i].ExtrusionGeometry;
 
+                        DA.SetData(0, shapes[i]);
+
                     }
                     if (shapes.Length > 0)
                     {
