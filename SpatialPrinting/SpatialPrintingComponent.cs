@@ -31,8 +31,7 @@ namespace SpatialPrinting
         /// </summary>
         protected override void RegisterInputParams(GH_Component.GH_InputParamManager pManager)
         {
-            pManager.AddLineParameter("lineObjs ", "pO", "an array of lineObject", GH_ParamAccess.item);
-            pManager.AddPlaneParameter("pathPlanes ", "pP", " an array of Plane", GH_ParamAccess.item);
+            pManager.AddPlaneParameter("pathPlanes ", "pP", " an array of Points", GH_ParamAccess.item);
         }
 
         /// <summary>
@@ -40,7 +39,7 @@ namespace SpatialPrinting
         /// </summary>
         protected override void RegisterOutputParams(GH_Component.GH_OutputParamManager pManager)
         {
-            pManager.AddTextParameter("Reverse", "R", "Reversed string", GH_ParamAccess.item);
+            pManager.AddGenericParameter("SuperShape", "SS", "SuperShape", GH_ParamAccess.item);
         }
 
         /// <summary>
@@ -51,7 +50,6 @@ namespace SpatialPrinting
         {
             // 1. Declare placeholder variables and assign initial invalid data.
             //    This way, if the input parameters fail to supply valid data, we know when to abort.
-            Rhino.Geometry.Line lineObjs = Rhino.Geometry.Line.Unset;
             Rhino.Geometry.Plane[] pathPlanes = null;
 
             //get the operation UI!
@@ -60,7 +58,7 @@ namespace SpatialPrinting
             if (progIndex > -1 && opIndex > -1)
             {
                 OperationUI opUI = smtPlugin.UIData.TreeRootUI.WC.ChildNodes[progIndex].ChildNodes[opIndex];
-                if (opUI != null && lineObjs != Rhino.Geometry.Line.Unset)
+                if (opUI != null )
                 {
 
                     opUI.DivStyle = DivisionStyle.PointData;
@@ -71,63 +69,55 @@ namespace SpatialPrinting
                     opUI.LOStyle = InOutStyle.Inactive;
                     //opUI.ApproxDist = 0.0f;
                     opUI.PTP_Traverse = true;
-                    ActionState gripAct = opUI.SuperOperationRef.GetActionState("Gripper");
-                    SuperActionUI actionUI = opUI.ActionControls["Gripper"];
+
+                    //actionstates of the extrusion operation
+                    ActionState extrudeAct = opUI.SuperOperationRef.GetActionState("Extruder");
+                    SuperActionUI actionUI = opUI.ActionControls["Extruder"];
                     actionUI.ActivationMode = ActivationStyle.PointData;
-                    SuperEvent grip = new SuperEvent(gripAct, 0.0, EventType.Activate, true);
-                    SuperEvent unGrip = new SuperEvent(gripAct, 0.0, EventType.Deactivate, true);
+                    SuperEvent extrude = new SuperEvent(extrudeAct, 0.0, EventType.Activate, true);
+                    SuperEvent stopExtrude = new SuperEvent(extrudeAct, 0.0, EventType.Deactivate, true);
 
 
-                    //given an array of ordered and oriented planes for each final  block location
+                    //given an array of ordered and oriented planes for each spatial extrusion location
                     //build paths
-                    //fixed pickup location
-                    Point3d pickPt = new Point3d(1375, -1892, 47);
-                    Vector3d pickZ = new Vector3d(0, 1, 0);
-                    Vector3d pickX = new Vector3d(1, 0, 0);
-                    Vector3d pickY = new Vector3d(0, 0, -1);
-                    Plane pickup = new Plane(pickPt, pickX, pickY);
-                    Plane approachPick = new Plane(pickup);//move along -Z of tool
-                    approachPick.Translate(pickZ * -50);
-                    Plane safe0 = approachPick;//move up from approach  on World Z
-                    safe0.Translate(Vector3d.ZAxis * 300);
-                    Plane pickLift = pickup;//move up on WorldZ
-                    pickLift.Translate(Vector3d.ZAxis * 300);
+                    Point3d segmentStartPt = new Point3d(1375, -1892, 47);  //needs to be revised to be varible start of the path 
+                    Vector3d segmentStartZ = new Vector3d(0, 1, 0);
+                    Vector3d segmentStartX = new Vector3d(1, 0, 0);
+                    Vector3d segmentStartY = new Vector3d(0, 0, -1);
+                    
+                    Plane segmentStart = new Plane(segmentStartPt, segmentStartX, segmentStartY);
+                    Plane approachSegment = new Plane(segmentStart);//move along -Z of tool
+                    Plane safe0 = approachSegment;//move up from approach  on World Z
 
+                    //approach the start of the extrusion path
                     SuperShape[] shapes = new SuperShape[pathPlanes.Length];
-                    SMTPart[] parts = new SMTPart[lineObjs.Length];
-                    Transform[] initPartXform = new Transform[lineObjs.Length];
+                    approachSegment.Translate(segmentStartZ * -50); //move negative into the path to account for thickess of the extrusion for bonding
 
-                    Point3d midPt = new Point3d(1236, 0, 1570);
-                    Vector3d midZ = new Vector3d(0, 0, -1);
-                    Vector3d midX = new Vector3d(-1, 0, 0);
-                    Vector3d midY = new Vector3d(0, 1, 0);
-                    Plane midPl = new Plane(midPt, midX, midY);
+
+                    //endPoint for all paths
+                    Point3d endPt = new Point3d(1236, 0, 1570); //needs to be revised to be varible end of the path 
+                    Vector3d endZ = new Vector3d(0, 0, -1);
+                    Vector3d endX = new Vector3d(-1, 0, 0);
+                    Vector3d endY = new Vector3d(0, 1, 0);
+                    Plane endPl = new Plane(endPt, endX, endY);
                     //we can use action states or events. try events first
                     for (int i = 0; i < pathPlanes.Length; i++)
-                    {
-                        SMTPData[] pData = new SMTPData[12];
-                        //create the pickup data
-                        pData[0] = new SMTPData(0, 0, 0, MoveType.Joint, safe0, 1.0f);
-                        pData[1] = new SMTPData(1, 1, 1, MoveType.Lin, approachPick, 1.0f);
-                        pData[2] = new SMTPData(2, 2, 2, MoveType.Lin, pickup, grip, 1.0f);
-                        pData[3] = new SMTPData(3, 3, 3, MoveType.Lin, pickLift, 1.0f);
-                        pData[4] = new SMTPData(4, 4, 4, MoveType.Joint, safe0, 1.0f);
 
-                        pData[5] = new SMTPData(5, 5, 5, MoveType.Joint, midPl, 1.0f);
-                        //for each point, create a safe approach, approach place, place. Then cycle back through them
+                    {
+                        SMTPData[] pData = new SMTPData[4];
+
+                        //for each point, create a safe approach, start extrusion, extrude path, end extrusion. Then cycle back through the paths
                         Plane place = pathPlanes[i];
                         Plane approachPlace = place;//World Z from Place
                         approachPlace.Translate(Vector3d.ZAxis * 100);
                         Plane safe1 = approachPlace;
-                        safe1.Translate(Vector3d.ZAxis * 200);
-
-                        //create the place data
-                        pData[6] = new SMTPData(6, 6, 6, MoveType.Joint, safe1, 1.0f);
-                        pData[7] = new SMTPData(7, 7, 7, MoveType.Lin, approachPlace, 1.0f);
-                        pData[8] = new SMTPData(8, 8, 8, MoveType.Lin, place, unGrip, 1.0f);
-                        pData[9] = new SMTPData(9, 9, 9, MoveType.Lin, approachPlace, 1.0f);
-                        pData[10] = new SMTPData(10, 10, 10, MoveType.Joint, safe1, 1.0f);
-                        pData[11] = new SMTPData(11, 11, 11, MoveType.Joint, midPl, 1.0f);
+                        safe1.Translate(Vector3d.ZAxis * 50);
+                        //create the extrusion data
+                        pData[0] = new SMTPData(0, 0, 0, MoveType.Joint, safe0, 1.0f);
+                        pData[1] = new SMTPData(1, 1, 1, MoveType.Lin, approachSegment, 1.0f);
+                        pData[2] = new SMTPData(2, 2, 2, MoveType.Lin, segmentStart, extrude, 1.0f);
+                        pData[3] = new SMTPData(5, 5, 5, MoveType.Joint, endPl, stopExtrude, 1.0f);
+                        pData[4] = new SMTPData(6, 6, 6, MoveType.Joint, safe1, 1.0f);
 
                         //finished with path
                         Guid guid = Guid.NewGuid();
@@ -135,18 +125,8 @@ namespace SpatialPrinting
 
                         shapes[i] = SuperShape.SuperShapeFactory(guid, null, DivisionStyle.PointData, ZOrientStyle.PointData, VectorStyle.ByParam, YOrientStyle.PointData, false, 0.0, Plane.WorldXY);
                         //smtPlugin.UserGeometry[guid] = partObjs[i].ExtrusionGeometry;
-                        Transform xForm = Transform.PlaneToPlane(place, pickup);
-                        initPartXform[i] = xForm;
 
                     }
-                    //Parallel.For(0, shapes.Length, i =>
-                    for (int i = 0; i < shapes.Length; i++)
-                    {
-                        RhinoDoc.ActiveDoc.Objects.Hide(lineObjs[i], true);
-                        Guid newPartId = RhinoDoc.ActiveDoc.Objects.Transform(lineObjs[i].Id, initPartXform[i], false);
-                        SMTRhObj part = new SMTRhObj(newPartId);
-                        shapes[i].Part = part;
-                    }//);
                     if (shapes.Length > 0)
                     {
                         var spbs = opUI.ReadFromGH(shapes);
@@ -157,6 +137,7 @@ namespace SpatialPrinting
                             //spbs.Last().IsSelected = true;
                         }
                     }
+
                 }
                 else
                     RhinoApp.WriteLine("You must select an Operation");
