@@ -31,7 +31,7 @@ namespace SpatialPrinting
         /// </summary>
         protected override void RegisterInputParams(GH_Component.GH_InputParamManager pManager)
         {
-            pManager.AddPlaneParameter("pathPlanes ", "pP", " an array of Points", GH_ParamAccess.item);
+            pManager.AddPlaneParameter("pathPlanes ", "pP", " an array of Planes", GH_ParamAccess.item);
         }
 
         /// <summary>
@@ -39,7 +39,9 @@ namespace SpatialPrinting
         /// </summary>
         protected override void RegisterOutputParams(GH_Component.GH_OutputParamManager pManager)
         {
-            pManager.AddGenericParameter("SuperShape", "SS", "SuperShape", GH_ParamAccess.item);
+            //pManager.AddGenericParameter("SuperShape", "SS", "SuperShape", GH_ParamAccess.item);
+            //pManager.AddParameter(new GH_SuperShapeParameter(), "SMT_SuperShapes", "SMT_SuperShapes", "SMT_SuperShapes", GH_ParamAccess.tree)
+
         }
 
         /// <summary>
@@ -126,7 +128,7 @@ namespace SpatialPrinting
                         shapes[i] = SuperShape.SuperShapeFactory(guid, null, DivisionStyle.PointData, ZOrientStyle.PointData, VectorStyle.ByParam, YOrientStyle.PointData, false, 0.0, Plane.WorldXY);
                         //smtPlugin.UserGeometry[guid] = partObjs[i].ExtrusionGeometry;
 
-                        DA.SetData(0, shapes[i]);
+                        //DA.SetData(0, shapes[i]);
 
                     }
                     if (shapes.Length > 0)
